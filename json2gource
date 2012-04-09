@@ -1,0 +1,46 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use utf8;
+use JSON;
+use Data::Printer;
+use DateTime;
+use Encode;
+
+###############################################################################
+# json2gource (c) BSD by Tim Esselens - Converts dierentheater JSON to CSV
+###############################################################################
+
+my $txt;
+
+$txt .= $_ foreach <STDIN>;
+
+my $d = decode_json($txt);
+
+my $objects = $d->{objects};
+
+my $lang = 'nl';
+
+binmode(STDOUT, ":utf8");
+
+foreach my $obj (@$objects) {
+    my $title = $obj->{title}{$lang};
+    next unless $obj->{document_chambre}{deposition_date};
+    my ($day, $month, $year) =  ($obj->{document_chambre}{deposition_date} =~ m/(\d{2})\/(\d{2})\/(\d{4})/);
+    my $date = DateTime->new(day => $day, month => $month, year => $year)->epoch;
+    my @comm = map { $_->{commission}{$lang} } @{$obj->{in_charge_commissions}};
+    my $type = $obj->{document_chambre}{document_chambre}{type}{$lang};
+       $type =~ s/^[\d\s]+//;
+    my $descr = $obj->{eurovoc_main_descriptor}{$lang};
+    my @authors = map { $_->{full_name} } grep { $_->{role}{nl} eq 'AUTEUR' } @{$obj->{document_chambre}{document_chambre}{authors}};
+
+    foreach my $com (@comm) {
+        my $file = "/$com/$type/$descr";
+        foreach my $user (@authors) {
+            next unless $user =~ m/\w+/;
+            next unless $com =~ m/\w+/;
+            print "$date|$user|M|$file.$com\n";
+        }
+    }
+}
+
